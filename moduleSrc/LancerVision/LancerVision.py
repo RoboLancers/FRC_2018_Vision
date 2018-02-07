@@ -289,9 +289,7 @@ class LancerVision:
     # ###################################################################################################
     # Internal method that gets invoked as a custom command
     def target(self):
-        return "{{{},{},{},{},{},{},{},{}}}\n".format(self.frame, ("T" if self.tgtAvailable else "F"), self.tgtAngle,
-                                                      self.tgtRange, self.frame_rate_fps, self.CPULoad_pct,
-                                                      self.CPUTemp_C, self.pipelineDelay_us)
+        return "{{{},{}}}\n".format(("T" if self.tgtAvailable else "F"), self.tgtAngle)
 
 
 class Target(object):
