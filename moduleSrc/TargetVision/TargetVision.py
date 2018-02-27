@@ -7,9 +7,9 @@ from datetime import datetime
 
 
 ####################################################################################################
-# Lancer Vision - Vision Processing for the FIRST Powerup
+# Target Vision - Vision Processing for the FIRST Powerup
 ####################################################################################################
-class LancerVision:
+class TargetVision:
     ####################################################################################################
     # Constructor
     def __init__(self):
@@ -76,7 +76,7 @@ class LancerVision:
         hsv_mask = cv2.inRange(hsv, self.hsv_thresh_lower, self.hsv_thresh_upper)
 
         # Erode image to remove noise if necessary.
-        hsv_mask = cv2.erode(hsv_mask, None, iterations=3)
+        hsv_mask = cv2.erode(hsv_mask, None, iterations=1)
         # Dilate image to fill in gaps
         hsv_mask = cv2.dilate(hsv_mask, None, iterations=3)
 
@@ -121,7 +121,8 @@ class LancerVision:
                 self.curTargets.append(Target(center_x, center_y, w1, h1))
 
             # Check aspect ratio of our target to make sure they are correct ratio
-            if (0.5/5 <= w/h <= 6/20 and 0.5/5 <= w1/h1 <= 6/20) and len(self.curTargets) > 1:
+            # if (0.5 / 5 <= w / h <= 6 / 20 and 0.5 / 5 <= w1 / h1 <= 6 / 20) and len(self.curTargets) > 1:
+            if len(self.curTargets) > 1:
                 self.tgtAvailable = True
                 self.tgtAngle = (((self.curTargets[0].X + self.curTargets[1].X) / 2) / 352 * 65) - 65 / 2
 
