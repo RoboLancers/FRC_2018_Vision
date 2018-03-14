@@ -23,28 +23,15 @@ class LancerVision:
         self.frame_dec_factor = 6  # At 60FPS, this still delivers 10FPS to the driver
 
         # Tuning constants
-        self.hsv_thresh_lower = np.array([0, 0, 220])
-        self.hsv_thresh_upper = np.array([255, 255, 255])
+        self.hsv_thresh_lower = np.array([65, 195, 96])
+        self.hsv_thresh_upper = np.array([92, 255, 255])
 
         # Target Information
         self.tgtAngle = "0.0"
         self.tgtRange = "0.0"
         self.tgtAvailable = "f"
 
-        # Timer and Variables to track statistics we care about
-        self.timer = jevois.Timer("LancerVisionStat", 25, jevois.LOG_DEBUG)
-
-        # Regex for parsing info out of the status returned from the jevois Timer class
-        self.pattern = re.compile(
-            '([0-9]*\.[0-9]+|[0-9]+) fps, ([0-9]*\.[0-9]+|[0-9]+)% CPU, ([0-9]*\.[0-9]+|[0-9]+)C,')
-
-        # Tracked stats
-        self.frame_rate_fps = "0"
-        self.CPULoad_pct = "0"
-        self.CPUTemp_C = "0"
-        self.pipelineDelay_us = "0"
-
-        # Data structure object to hold info about the present data processed from the image fram
+        # Data structure object to hold info about the present data processed from the image frame
         self.curTargets = []
         self.sortedArray = []
 
@@ -52,9 +39,6 @@ class LancerVision:
 
     # Process image with no image output
     def processNoUSB(self, inframe):
-        # Start measuring image processing time:
-        self.timer.start()
-
         # No targets found yet
         self.tgtAvailable = False
         self.curTargets = []
@@ -62,9 +46,6 @@ class LancerVision:
         # Capture image from camera
         inimg = inframe.getCvBGR()
         self.frame += 1
-
-        # Mark start of pipeline time
-        pipeline_start_time = datetime.now()
 
         ###############################################
         # Start Image Processing Pipeline
@@ -84,7 +65,7 @@ class LancerVision:
         contours = cv2.findContours(hsv_mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_TC89_KCOS)[-2]
 
         # Filter out contours with smaller perimeters
-        contours = [x for x in contours if not cv2.arcLength(x, True) < 50]
+        contours = [x for x in contours if not cv2.arcLength(x, True) < 30]
 
         # If we have more than 2 contours, figure out which two is the target.
         if len(contours) > 1:
@@ -121,36 +102,16 @@ class LancerVision:
                 self.curTargets.append(Target(center_x, center_y, w1, h1))
 
             # Check aspect ratio of our target to make sure they are correct ratio
-            if (1.5 / 15 <= w / h <= 3.5 / 17 and 1.5 / 15 <= w1 / h1 <= 3.5 / 17) and len(self.curTargets) > 1:
+            if 1.5 / 10 <= w / h <= 3.5 / 20 and 1.5 / 10 <= w1 / h1 <= 3.5 / 20:
                 self.tgtAvailable = True
                 self.tgtAngle = (((self.curTargets[0].X + self.curTargets[1].X) / 2) / 352 * 65) - 65 / 2
 
         ###############################################
         # End Image Processing Pipeline
         ###############################################
-
-        # Mark end of pipeline
-        # For accuracy, Must be done as close to sending the serial data as possible
-        pipeline_end_time = datetime.now() - pipeline_start_time
-        self.pipelineDelay_us = pipeline_end_time.microseconds
-
-        # Send processed data about target location and current status
-        # Note the order and number of params here must match with the roboRIO code.
-        # jevois.sendSerial("{{{},{},{},{},{},{},{},{}}}\n".format(self.frame,("T" if self.tgtAvailable else "F"),self.tgtAngle, self.tgtRange,self.frame_rate_fps,self.CPULoad_pct,self.CPUTemp_C,self.pipelineDelay_us))
-
-        # Track Processor Statistics
-        results = self.pattern.match(self.timer.stop())
-        if results is not None:
-            self.frame_rate_fps = results.group(1)
-            self.CPULoad_pct = results.group(2)
-            self.CPUTemp_C = results.group(3)
 
     # Process function with USB output
     def process(self, inframe, outframe=None):
-
-        # Start measuring image processing time:
-        self.timer.start()
-
         # No targets found yet
         self.tgtAvailable = False
         self.curTargets = []
@@ -158,9 +119,6 @@ class LancerVision:
         # Capture image from camera
         inimg = inframe.getCvBGR()
         self.frame += 1
-
-        # Mark start of pipeline time
-        pipeline_start_time = datetime.now()
 
         ###############################################
         # Start Image Processing Pipeline
@@ -217,25 +175,14 @@ class LancerVision:
                 self.curTargets.append(Target(center_x, center_y, w1, h1))
 
             # Check aspect ratio of our target to make sure they are correct ratio
-            if (1.5/15 <= w/h <= 3.5/17 and 1.5/15 <= w1/h1 <= 3.5/17) and len(self.curTargets) > 1:
+            if (1.5 / 10 <= w / h <= 3.5 / 20) and (1.5 / 10 <= w1 / h1 <= 3.5 / 20):
                 self.tgtAvailable = True
                 self.tgtAngle = (((self.curTargets[0].X + self.curTargets[1].X) / 2) / 352 * 65) - 65 / 2
 
-        ###############################################
-        # End Image Processing Pipeline
-        ###############################################
+            ###############################################
+            # End Image Processing Pipeline
+            ###############################################
 
-        # Mark end of pipeline
-        # For accuracy, Must be done as close to sending the serial data as possible
-        pipeline_end_time = datetime.now() - pipeline_start_time
-        self.pipelineDelay_us = pipeline_end_time.microseconds
-
-        # Send processed data about target location and current status
-        # Note the order and number of params here must match with the roboRIO code.
-        # jevois.sendSerial("{{{},{},{},{},{},{},{},{}}}\n".format(self.frame,("T" if self.tgtAvailable else "F"),self.tgtAngle, self.tgtRange,self.frame_rate_fps,self.CPULoad_pct,self.CPUTemp_C,self.pipelineDelay_us))
-
-        # Broadcast the frame if we have an output sink available
-        if outframe is not None:
             # Even if we're connected, don't send every frame we process. This will
             # help keep our USB bandwidth usage down.
             if self.frame % self.frame_dec_factor == 0:
@@ -259,17 +206,9 @@ class LancerVision:
                 # We are done with the output, ready to send it to host over USB:
                 outframe.sendCvBGR(outimg)
 
-        # Track Processor Statistics
-        results = self.pattern.match(self.timer.stop())
-        if results is not None:
-            self.frame_rate_fps = results.group(1)
-            self.CPULoad_pct = results.group(2)
-            self.CPUTemp_C = results.group(3)
-
     # ###################################################################################################
     # Parse a serial command forwarded to us by the JeVois Engine, return a string
     def parseSerial(self, command):
-
         if command.strip() == "":
             # For some reason, the jevois engine sometimes sends empty strings.
             # Just do nothing in this case.
@@ -289,7 +228,7 @@ class LancerVision:
     # ###################################################################################################
     # Internal method that gets invoked as a custom command
     def target(self):
-        return "{{{},{}}}\n".format(("T" if self.tgtAvailable else "F"), self.tgtAngle)
+        return "{{{},{},{}}}\n".format(self.frame, ("T" if self.tgtAvailable else "F"), self.tgtAngle)
 
 
 class Target(object):
